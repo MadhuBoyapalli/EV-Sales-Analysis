@@ -1,0 +1,127 @@
+1.List the top 3 and bottom 3 makers for the fiscal years 2023 and 2024 in terms of the number of 2-wheelers sold. 
+select top(3) em.maker ,sum(electric_vehicles_sold)as totol_sales
+from  [dbo].[electric_vehicle_sales_by_makers] as em
+join [dbo].[dim_date] as dd
+on em.date= em.date
+where em.vehicle_category = '2-Wheelers' and ( dd.fiscal_year= '2023' or dd.fiscal_year= '2024'  )
+group by maker
+order by totol_sales desc;
+
+select top(3) em.maker ,sum(electric_vehicles_sold)as totol_sales
+from  [dbo].[electric_vehicle_sales_by_makers] as em
+join [dbo].[dim_date] as dd
+on em.date= em.date
+where em.vehicle_category = '2-Wheelers' and ( dd.fiscal_year= '2023' or dd.fiscal_year= '2024'  )
+group by maker
+order by totol_sales asc ;
+
+2.Identify the top 5 states with the highest penetration rate in 2-wheeler and 4-wheeler EV sales in FY 2024.
+select top(5) state,concat( round(sum(electric_vehicles_sold)/sum(total_vehicles_sold) * 100,2), '%' ) as Penetration_rate from 
+[dbo].[electric_vehicle_sales_by_state] as es
+join [dbo].[dim_date] as dd
+on es.date=dd.date
+where (dd.fiscal_year='2024') and (es.vehicle_category='4-Wheelers')
+group by state
+order by Penetration_rate desc;
+
+
+select  top(5) state,round(sum(electric_vehicles_sold)/sum(total_vehicles_sold) * 100,2) as Penetration_rate  from 
+[dbo].[electric_vehicle_sales_by_state] as es
+join [dbo].[dim_date] as dd
+on es.date=dd.date
+where (dd.fiscal_year='2024') and (es.vehicle_category='2-Wheelers')
+group by state
+order by [Penetration_rate] desc;
+
+3. List the states with negative penetration (decline) in EV sales from 2022 to 2024?
+WITH YearlyPenetration AS
+(
+    SELECT State, 
+           b.fiscal_year,
+           SUM(CAST(electric_vehicles_sold AS FLOAT)) / SUM(CAST(total_vehicles_sold AS FLOAT)) AS PEN_RATE
+    FROM [dbo].[electric_vehicle_sales_by_state] a
+    JOIN dbo.dim_date b
+    ON a.date = b.date
+    WHERE b.fiscal_year IN (2022, 2024)
+    GROUP BY State, b.fiscal_year
+)
+SELECT top 5
+    p2022.State,
+    p2022.PEN_RATE AS penetration_rate_2022,
+    p2024.PEN_RATE AS penetration_rate_2024,
+    round(p2022.PEN_RATE - p2024.PEN_RATE,4) AS penetration_rate_difference
+FROM 
+    (SELECT * FROM YearlyPenetration WHERE fiscal_year = 2022) p2022
+JOIN 
+    (SELECT * FROM YearlyPenetration WHERE fiscal_year = 2024) p2024
+ON p2022.State = p2024.State
+order by penetration_rate_difference asc;
+
+
+4.What are the quarterly trends based on sales volume for the top 5 EV 
+makers (4-wheelers) from 2022 to 2024?
+select dd.quarter, sum(es.electric_vehicles_sold) as volume_sales from [dbo].[electric_vehicle_sales_by_state] as es
+join  [dbo].[dim_date] as dd
+on es.date= dd.date
+where vehicle_category='4-Wheelers'
+group by dd.quarter 
+order by dd.quarter
+
+5.How do the EV sales and penetration rates in Delhi compare to Karnataka for 2024? 
+select es.state ,sum(es.electric_vehicles_sold) as volume_sales,
+round(sum(electric_vehicles_sold)/sum(total_vehicles_sold),3)*100 as [penetration rate]
+from [dbo].[electric_vehicle_sales_by_state] as es
+join  [dbo].[dim_date] as dd
+on es.date= dd.date
+where state='delhi' or state='karnataka'
+group by es.state;
+
+6. List down the compounded annual growth rate (CAGR) in 4-wheeler units for the top 5 makers from 2022 to 2024.
+with table1 as
+(select maker,sum(ss.electric_vehicles_sold) as [2022]from [dbo].[electric_vehicle_sales_by_makers] as ss
+join [dbo].[dim_date] as dd
+on dd.date= ss.date
+where fiscal_year='2022' and ss.vehicle_category='4-Wheelers'
+group by ss.maker),
+table2 as
+(select  maker,sum(ss.electric_vehicles_sold) as [2024]from [dbo].[electric_vehicle_sales_by_makers] as ss
+join [dbo].[dim_date] as dd
+on dd.date= ss.date
+where fiscal_year='2024' and ss.vehicle_category='4-Wheelers'
+group by ss.maker)
+select top(5) t1.maker,concat( (power(t2.[2024]/nullif(t1.[2022],0),0.5)-1)*100 ,'%') AS CAGR from table1 as t1
+join table2 as t2
+on t1.maker=t2.maker
+order by CAGR desc;
+
+7.List down the top 10 states that had the highest compounded annual growth rate (CAGR) from 2022 to 2024 in total vehicles sold. 
+with table1 as
+(select state,sum(ss.total_vehicles_sold) as [2022]from [dbo].[electric_vehicle_sales_by_state] as ss
+join [dbo].[dim_date] as dd
+on dd.date= ss.date
+where fiscal_year='2022'
+group by ss.state),
+table2 as
+(select state,sum(ss.total_vehicles_sold) as [2024]from [dbo].[electric_vehicle_sales_by_state] as ss
+join [dbo].[dim_date] as dd
+on dd.date= ss.date
+where fiscal_year='2024'
+group by ss.state)
+select top(11) with ties t1.state as state,round(((power(t2.[2024]/t1.[2022],0.5)-1)*100),3)as CAGR from table1 as t1
+join table2 as t2
+on t1.state=t2.state
+order by CAGR desc ;
+
+
+ 8.What are the peak and low season months for EV sales based on the data from 2022 to 2024? 
+select top(3) month(es.date)as Month,
+sum(es.electric_vehicles_sold) as Volume_sales 
+from [dbo].[electric_vehicle_sales_by_state] as es
+group by month(es.date)
+order by volume_sales desc;
+
+select top(3) month(es.date)as Month,
+sum(es.electric_vehicles_sold) as Volume_sales 
+from [dbo].[electric_vehicle_sales_by_state] as es
+group by month(es.date)
+order by volume_sales asc;
